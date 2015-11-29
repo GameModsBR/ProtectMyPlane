@@ -1,6 +1,7 @@
 package br.com.gamemods.protectmyplane.classtransformers.mcheli;
 
 import br.com.gamemods.protectmyplane.annotation.Hook;
+import br.com.gamemods.protectmyplane.event.AircraftAttackEvent;
 import br.com.gamemods.protectmyplane.event.PlayerPilotAircraftEvent;
 import br.com.gamemods.protectmyplane.event.PlayerSpawnVehicleEvent;
 import net.minecraft.command.ICommandSender;
@@ -8,13 +9,13 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.launchwrapper.IClassTransformer;
+import net.minecraft.util.DamageSource;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.common.MinecraftForge;
 import org.objectweb.asm.*;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.UUID;
@@ -60,6 +61,30 @@ public class EntityAircraft implements IClassTransformer
         }
     }
 
+    public static boolean hook(Entity entity, DamageSource source, float damage)
+    {
+        System.out.println("Attack "+entity+" "+damage+" "+damage);
+        return MinecraftForge.EVENT_BUS.post(new AircraftAttackEvent(entity, source, damage));
+    }
+
+    private class AttackHookGenerator extends GeneratorAdapter
+    {
+        protected AttackHookGenerator(MethodVisitor mv, int access, String name, String desc)
+        {
+            super(Opcodes.ASM4, mv, access, name, desc);
+            super.visitVarInsn(Opcodes.ALOAD, 0);
+            super.visitVarInsn(Opcodes.ALOAD, 1);
+            super.visitVarInsn(Opcodes.FLOAD, 2);
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "hook",
+                    "(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/DamageSource;F)Z", false);
+            Label elseLabel = new Label();
+            super.visitJumpInsn(Opcodes.IFEQ, elseLabel);
+            super.visitInsn(Opcodes.ICONST_0);
+            super.visitInsn(Opcodes.IRETURN);
+            super.visitLabel(elseLabel);
+        }
+    }
+
     @Override
     public byte[] transform(String name, String srgName, byte[] bytes)
     {
@@ -80,6 +105,8 @@ public class EntityAircraft implements IClassTransformer
                     MethodVisitor methodVisitor = super.visitMethod(access, name, desc, signature, exceptions);
                     if(name.equals("func_130002_c") || name.equals("interactFirst"))
                         return new RightClickProtectionGenerator(methodVisitor, access, name, desc);
+                    else if(name.equals("func_70097_a") || name.equals("attackEntityFrom"))
+                        return new AttackHookGenerator(methodVisitor, access, name, desc);
 
                     return methodVisitor;
                 }
