@@ -1,6 +1,7 @@
 package br.com.gamemods.protectmyplane.classtransformers.mcheli;
 
 import br.com.gamemods.protectmyplane.annotation.Hook;
+import br.com.gamemods.protectmyplane.event.PlayerPilotAircraftEvent;
 import br.com.gamemods.protectmyplane.event.PlayerSpawnVehicleEvent;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.Entity;
@@ -20,6 +21,45 @@ import java.util.UUID;
 
 public class EntityAircraft implements IClassTransformer
 {
+    public static boolean hook(Entity entity, EntityPlayer player, String ownerId, String ownerName)
+    {
+        System.out.println("RightClick "+entity+" "+player+" "+ownerId+" "+ownerName);
+        return MinecraftForge.EVENT_BUS.post(new PlayerPilotAircraftEvent(player, entity, ownerId!=null?UUID.fromString(ownerId):null, ownerName));
+    }
+
+    private class RightClickProtectionGenerator extends GeneratorAdapter
+    {
+        boolean patched;
+
+        protected RightClickProtectionGenerator(MethodVisitor mv, int access, String name, String desc)
+        {
+            super(Opcodes.ASM4, mv, access, name, desc);
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int var)
+        {
+            if(!patched)
+            {
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitVarInsn(Opcodes.ALOAD, 1);
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitFieldInsn(Opcodes.GETFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerId", "Ljava/lang/String;");
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitFieldInsn(Opcodes.GETFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerName", "Ljava/lang/String;");
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "hook",
+                        "(Lnet/minecraft/entity/Entity;Lnet/minecraft/entity/player/EntityPlayer;Ljava/lang/String;Ljava/lang/String;)Z", false);
+                Label elseLabel = new Label();
+                super.visitJumpInsn(Opcodes.IFEQ, elseLabel);
+                super.visitInsn(Opcodes.ICONST_0);
+                super.visitInsn(Opcodes.IRETURN);
+                super.visitLabel(elseLabel);
+                patched=true;
+            }
+            super.visitVarInsn(opcode, var);
+        }
+    }
+
     @Override
     public byte[] transform(String name, String srgName, byte[] bytes)
     {
@@ -31,7 +71,21 @@ public class EntityAircraft implements IClassTransformer
 
             addPmpOwner(writer, srgName);
 
-            reader.accept(writer, ClassReader.EXPAND_FRAMES);
+
+            ClassVisitor visitor = new ClassVisitor(Opcodes.ASM4, writer)
+            {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions)
+                {
+                    MethodVisitor methodVisitor = super.visitMethod(access, name, desc, signature, exceptions);
+                    if(name.equals("func_130002_c") || name.equals("interactFirst"))
+                        return new RightClickProtectionGenerator(methodVisitor, access, name, desc);
+
+                    return methodVisitor;
+                }
+            };
+
+            reader.accept(visitor, ClassReader.EXPAND_FRAMES);
             bytes = writer.toByteArray();
             FileOutputStream out = null;
             try
@@ -67,6 +121,45 @@ public class EntityAircraft implements IClassTransformer
             reader.accept(visitor, ClassReader.EXPAND_FRAMES);
 
             bytes = writer.toByteArray();
+            FileOutputStream out = null;
+            try
+            {
+                File file = new File(srgName + ".class");
+                System.out.println("----------> Saving to "+file.getAbsolutePath());
+                out = new FileOutputStream(file);
+                out.write(bytes);
+            } catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+            finally
+            {
+                if(out != null) try
+                {
+                    out.close();
+                } catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+            return bytes;
+        }
+        else if("mcheli.aircraft.MCH_EntityHitBox".equals(srgName))
+        {
+            System.out.println("----------> Patching mcheli.aircraft.MCH_EntityHitBox");
+            ClassReader reader = new ClassReader(bytes);
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+
+            MethodVisitor methodVisitor = writer.visitMethod(Opcodes.ACC_PUBLIC, "getPmpOwnerId", "()Ljava/lang/String;", null, null);
+            methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
+            methodVisitor.visitFieldInsn(Opcodes.GETFIELD, "mcheli/aircraft/MCH_EntityHitBox", "parent", "Lmcheli/aircraft/MCH_EntityAircraft;");
+            methodVisitor.visitFieldInsn(Opcodes.GETFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerId", "Ljava/lang/String;");
+            methodVisitor.visitInsn(Opcodes.ARETURN);
+            //methodVisitor.visitMaxs(0,0);
+
+            reader.accept(writer, ClassReader.EXPAND_FRAMES);
+            bytes = writer.toByteArray();
+
             FileOutputStream out = null;
             try
             {
