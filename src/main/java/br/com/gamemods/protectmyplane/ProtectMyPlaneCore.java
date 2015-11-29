@@ -7,7 +7,7 @@ import java.util.Map;
 @IFMLLoadingPlugin.MCVersion("1.7.10")
 @IFMLLoadingPlugin.Name("ProtectMyPlane")
 @IFMLLoadingPlugin.SortingIndex(1001)
-@IFMLLoadingPlugin.TransformerExclusions("br.com.gamemods.protectmyplane")
+//@IFMLLoadingPlugin.TransformerExclusions("br.com.gamemods.protectmyplane")
 public class ProtectMyPlaneCore implements IFMLLoadingPlugin
 {
     @Override
@@ -21,7 +21,7 @@ public class ProtectMyPlaneCore implements IFMLLoadingPlugin
     @Override
     public String getModContainerClass()
     {
-        return null;
+        return "br.com.gamemods.protectmyplane.ProtectMyPlaneMod";
     }
 
     @Override
