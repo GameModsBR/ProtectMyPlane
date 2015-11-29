@@ -1,0 +1,16 @@
+[
+{
+  "modid": "ProtectMyPlane",
+  "name": "Protect My Plane",
+  "description": "A server-side mod that allows protection mods to protect MCHeli vehicles",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["joserobjr"],
+  "credits": "",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
