@@ -266,15 +266,22 @@ public class EntityAircraft implements IClassTransformer
                 System.out.println("----------> POP Found! Patching");
                 String mine = EntityAircraft.class.getName().replace('.','/');
                 super.visitInsn(Opcodes.DUP);
+                super.storeLocal(var);
+
+                Label nullLabel = new Label();
+                super.visitJumpInsn(Opcodes.IFNULL, nullLabel);
+                super.loadLocal(var);
                 super.visitVarInsn(Opcodes.ALOAD, 3);
                 super.visitMethodInsn(Opcodes.INVOKESTATIC, mine, "getCommandSenderName", "(Lnet/minecraft/command/ICommandSender;)Ljava/lang/String;", false);
                 //super.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "mcheli/aircraft/MCH_EntityAircraft", "setPmpOwnerName", "(Ljava/lang/String;)V", false);
                 super.visitFieldInsn(Opcodes.PUTFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerName", "Ljava/lang/String;");
+                super.loadLocal(var);
                 super.visitVarInsn(Opcodes.ALOAD, 3);
                 super.visitMethodInsn(Opcodes.INVOKESTATIC, mine, "getPersistentID", "(Lnet/minecraft/entity/Entity;)Ljava/util/UUID;", false);
                 super.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/UUID", "toString", "()Ljava/lang/String;", false);
                 //super.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "mcheli/aircraft/MCH_EntityAircraft", "setPmpOwnerId", "(Ljava/lang/String;)V", false);
                 super.visitFieldInsn(Opcodes.PUTFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerId", "Ljava/lang/String;");
+                super.visitLabel(nullLabel);
                 waitingPop = false;
                 patched = true;
                 System.out.println("----------> Patch completed!");
