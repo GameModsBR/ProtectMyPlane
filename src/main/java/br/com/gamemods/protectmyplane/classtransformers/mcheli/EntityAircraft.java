@@ -2,12 +2,13 @@ package br.com.gamemods.protectmyplane.classtransformers.mcheli;
 
 import br.com.gamemods.protectmyplane.annotation.Hook;
 import br.com.gamemods.protectmyplane.event.AircraftAttackEvent;
+import br.com.gamemods.protectmyplane.event.AircraftDropEvent;
 import br.com.gamemods.protectmyplane.event.PlayerPilotAircraftEvent;
 import br.com.gamemods.protectmyplane.event.PlayerSpawnVehicleEvent;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
+import net.minecraft.item.*;
 import net.minecraft.launchwrapper.IClassTransformer;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.MovingObjectPosition;
@@ -18,10 +19,12 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.UUID;
 
 public class EntityAircraft implements IClassTransformer
 {
+    @Hook
     public static boolean hook(Entity entity, EntityPlayer player, String ownerId, String ownerName)
     {
         System.out.println("RightClick "+entity+" "+player+" "+ownerId+" "+ownerName);
@@ -61,6 +64,7 @@ public class EntityAircraft implements IClassTransformer
         }
     }
 
+    @Hook
     public static boolean hook(Entity entity, DamageSource source, float damage)
     {
         System.out.println("Attack "+entity+" "+damage+" "+damage);
@@ -210,8 +214,112 @@ public class EntityAircraft implements IClassTransformer
             }
             return bytes;
         }
+        else if("mcheli.wrapper.W_Entity".equals(srgName))
+        {
+            System.out.println("----------> Patching mcheli.wrapper.W_Entity");
+            ClassReader reader = new ClassReader(bytes);
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+
+            ClassVisitor visitor = new ClassVisitor(Opcodes.ASM4, writer)
+            {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions)
+                {
+                    MethodVisitor methodVisitor = super.visitMethod(access, name, desc, signature, exceptions);
+                    if(name.equals("dropItemWithOffset"))
+                        return new DropItemWrapperGenerator(methodVisitor, access, name, desc);
+
+                    return methodVisitor;
+                }
+            };
+
+            reader.accept(visitor, ClassReader.EXPAND_FRAMES);
+            bytes = writer.toByteArray();
+            FileOutputStream out = null;
+            try
+            {
+                File file = new File(srgName + ".class");
+                System.out.println("----------> Saving to "+file.getAbsolutePath());
+                out = new FileOutputStream(file);
+                out.write(bytes);
+            } catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+            finally
+            {
+                if(out != null) try
+                {
+                    out.close();
+                } catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }
 
         return bytes;
+    }
+
+    private class DropItemWrapperGenerator extends GeneratorAdapter
+    {
+        boolean patched;
+
+        protected DropItemWrapperGenerator(MethodVisitor mv, int access, String name, String desc)
+        {
+            super(Opcodes.ASM4, mv, access, name, desc);
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int var)
+        {
+            if(!patched)
+            {
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitVarInsn(Opcodes.ALOAD, 1);
+                super.visitVarInsn(Opcodes.ILOAD, 2);
+                super.visitVarInsn(Opcodes.FLOAD, 3);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.', '/'), "hook",
+                        "(Lnet/minecraft/entity/Entity;Lnet/minecraft/item/Item;IF)Z", false);
+
+                Label label = new Label();
+                super.visitJumpInsn(Opcodes.IFEQ, label);
+                super.visitInsn(Opcodes.ACONST_NULL);
+                super.visitInsn(Opcodes.ARETURN);
+                super.visitLabel(label);
+                patched = true;
+            }
+            super.visitVarInsn(opcode, var);
+        }
+    }
+
+    public static Class<? extends Entity> aircraftClass;
+    public static Field pmpOwnerName, pmpOwnerId;
+    @Hook
+    public static boolean hook(Entity entity, Item item, int amount, float offset)
+    {
+        if (aircraftClass == null)
+            try
+            {
+                //noinspection unchecked
+                aircraftClass = (Class<? extends Entity>) Class.forName("mcheli.aircraft.MCH_EntityAircraft");
+                pmpOwnerName = aircraftClass.getField("pmpOwnerName");
+                pmpOwnerId = aircraftClass.getField("pmpOwnerId");
+            } catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+
+        if(aircraftClass.isInstance(entity))
+        {
+            System.out.println("AIRCRAFT DROP! "+entity+" "+item+" "+amount+" "+offset);
+            return MinecraftForge.EVENT_BUS.post(new AircraftDropEvent(entity, item, amount, offset));
+        }
+        else
+        {
+            System.out.println("Something dropped "+entity+" "+item+" "+amount+" "+offset);
+        }
+        return false;
     }
 
     @Hook
@@ -221,11 +329,13 @@ public class EntityAircraft implements IClassTransformer
         return MinecraftForge.EVENT_BUS.post(new PlayerSpawnVehicleEvent(player, stack, position.blockX, position.blockY, position.blockZ));
     }
 
+    @Hook
     public static String getCommandSenderName(ICommandSender sender)
     {
         return sender.getCommandSenderName();
     }
 
+    @Hook
     public static UUID getPersistentID(Entity entity)
     {
         return entity.getPersistentID();
