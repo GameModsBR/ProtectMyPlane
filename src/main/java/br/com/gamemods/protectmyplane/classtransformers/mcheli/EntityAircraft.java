@@ -71,8 +71,9 @@ public class EntityAircraft implements IClassTransformer
         initReflections();
         try
         {
+            String uuid = (String) pmpOwnerId.get(entity);
             return MinecraftForge.EVENT_BUS.post(new AircraftAttackEvent(entity, source, damage,
-                    UUID.fromString((String)pmpOwnerId.get(entity)), (String)pmpOwnerName.get(entity)));
+                    uuid == null? null : UUID.fromString(uuid), (String)pmpOwnerName.get(entity)));
         } catch (IllegalAccessException e)
         {
             throw new RuntimeException(e);
