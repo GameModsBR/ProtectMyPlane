@@ -68,7 +68,15 @@ public class EntityAircraft implements IClassTransformer
     public static boolean hook(Entity entity, DamageSource source, float damage)
     {
         System.out.println("Attack "+entity+" "+damage+" "+damage);
-        return MinecraftForge.EVENT_BUS.post(new AircraftAttackEvent(entity, source, damage));
+        initReflections();
+        try
+        {
+            return MinecraftForge.EVENT_BUS.post(new AircraftAttackEvent(entity, source, damage,
+                    UUID.fromString((String)pmpOwnerId.get(entity)), (String)pmpOwnerName.get(entity)));
+        } catch (IllegalAccessException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private class AttackHookGenerator extends GeneratorAdapter
@@ -295,8 +303,7 @@ public class EntityAircraft implements IClassTransformer
 
     public static Class<? extends Entity> aircraftClass;
     public static Field pmpOwnerName, pmpOwnerId;
-    @Hook
-    public static boolean hook(Entity entity, Item item, int amount, float offset)
+    public static void initReflections()
     {
         if (aircraftClass == null)
             try
@@ -309,7 +316,12 @@ public class EntityAircraft implements IClassTransformer
             {
                 throw new RuntimeException(e);
             }
+    }
 
+    @Hook
+    public static boolean hook(Entity entity, Item item, int amount, float offset)
+    {
+        initReflections();
         if(aircraftClass.isInstance(entity))
         {
             System.out.println("AIRCRAFT DROP! "+entity+" "+item+" "+amount+" "+offset);
