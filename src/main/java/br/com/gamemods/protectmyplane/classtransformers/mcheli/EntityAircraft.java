@@ -313,7 +313,14 @@ public class EntityAircraft implements IClassTransformer
         if(aircraftClass.isInstance(entity))
         {
             System.out.println("AIRCRAFT DROP! "+entity+" "+item+" "+amount+" "+offset);
-            return MinecraftForge.EVENT_BUS.post(new AircraftDropEvent(entity, item, amount, offset));
+            try
+            {
+                return MinecraftForge.EVENT_BUS.post(new AircraftDropEvent(entity, item, amount, offset,
+                        UUID.fromString((String)pmpOwnerId.get(entity)), (String)pmpOwnerName.get(entity)));
+            } catch (ReflectiveOperationException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         else
         {
