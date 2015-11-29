@@ -10,6 +10,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.*;
 import net.minecraft.launchwrapper.IClassTransformer;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.common.MinecraftForge;
@@ -82,19 +83,107 @@ public class EntityAircraft implements IClassTransformer
 
     private class AttackHookGenerator extends GeneratorAdapter
     {
+        boolean patched;
         protected AttackHookGenerator(MethodVisitor mv, int access, String name, String desc)
         {
             super(Opcodes.ASM4, mv, access, name, desc);
-            super.visitVarInsn(Opcodes.ALOAD, 0);
-            super.visitVarInsn(Opcodes.ALOAD, 1);
-            super.visitVarInsn(Opcodes.FLOAD, 2);
-            super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "hook",
-                    "(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/DamageSource;F)Z", false);
-            Label elseLabel = new Label();
-            super.visitJumpInsn(Opcodes.IFEQ, elseLabel);
-            super.visitInsn(Opcodes.ICONST_0);
-            super.visitInsn(Opcodes.IRETURN);
-            super.visitLabel(elseLabel);
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int var)
+        {
+            if(!patched)
+            {
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitVarInsn(Opcodes.ALOAD, 1);
+                super.visitVarInsn(Opcodes.FLOAD, 2);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "hook",
+                        "(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/DamageSource;F)Z", false);
+                Label elseLabel = new Label();
+                super.visitJumpInsn(Opcodes.IFEQ, elseLabel);
+                super.visitInsn(Opcodes.ICONST_0);
+                super.visitInsn(Opcodes.IRETURN);
+                super.visitLabel(elseLabel);
+                patched = true;
+            }
+
+            super.visitVarInsn(opcode, var);
+        }
+    }
+
+    @Hook
+    public static void saveNbt(NBTTagCompound compound, String ownerId, String ownerName)
+    {
+        compound.setString("pmpOwnerId", ownerId);
+        compound.setString("pmpOwnerName", ownerName);
+    }
+
+    private class WriteToNBTGenerator extends GeneratorAdapter
+    {
+        boolean patched;
+        protected WriteToNBTGenerator(MethodVisitor mv, int access, String name, String desc)
+        {
+            super(Opcodes.ASM4, mv, access, name, desc);
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int var)
+        {
+            if(!patched)
+            {
+                super.visitVarInsn(Opcodes.ALOAD, 1);
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitFieldInsn(Opcodes.GETFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerId", "Ljava/lang/String;");
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitFieldInsn(Opcodes.GETFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerName", "Ljava/lang/String;");
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "saveNbt",
+                        "(Lnet/minecraft/nbt/NBTTagCompound;Ljava/lang/String;Ljava/lang/String;)V", false);
+                patched=true;
+            }
+            super.visitVarInsn(opcode, var);
+        }
+    }
+
+    @Hook
+    public static String readNbtId(NBTTagCompound tagCompound)
+    {
+        return tagCompound.getString("pmpOwnerId");
+    }
+
+    @Hook
+    public static String readNbtName(NBTTagCompound tagCompound)
+    {
+        return tagCompound.getString("pmpOwnerName");
+    }
+
+    private class ReadNbtGenerator extends GeneratorAdapter
+    {
+        boolean patched;
+
+        protected ReadNbtGenerator(MethodVisitor mv, int access, String name, String desc)
+        {
+            super(Opcodes.ASM4, mv, access, name, desc);
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int var)
+        {
+            if(!patched)
+            {
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitVarInsn(Opcodes.ALOAD, 1);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "readNbtId",
+                        "(Lnet/minecraft/nbt/NBTTagCompound;)Ljava/lang/String;", false);
+                super.visitFieldInsn(Opcodes.PUTFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerId", "Ljava/lang/String;");
+
+                super.visitVarInsn(Opcodes.ALOAD, 0);
+                super.visitVarInsn(Opcodes.ALOAD, 1);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, EntityAircraft.class.getName().replace('.','/'), "readNbtName",
+                        "(Lnet/minecraft/nbt/NBTTagCompound;)Ljava/lang/String;", false);
+                super.visitFieldInsn(Opcodes.PUTFIELD, "mcheli/aircraft/MCH_EntityAircraft", "pmpOwnerName", "Ljava/lang/String;");
+                patched=true;
+            }
+            super.visitVarInsn(opcode, var);
         }
     }
 
@@ -120,7 +209,10 @@ public class EntityAircraft implements IClassTransformer
                         return new RightClickProtectionGenerator(methodVisitor, access, name, desc);
                     else if(name.equals("func_70097_a") || name.equals("attackEntityFrom"))
                         return new AttackHookGenerator(methodVisitor, access, name, desc);
-
+                    else if(name.equals("func_70014_b") || name.equals("writeEntityToNBT"))
+                        return new WriteToNBTGenerator(methodVisitor, access, name, desc);
+                    else if(name.equals("func_70037_a") || name.equals("readEntityFromNBT"))
+                        return new ReadNbtGenerator(methodVisitor, access, name, desc);
                     return methodVisitor;
                 }
             };
