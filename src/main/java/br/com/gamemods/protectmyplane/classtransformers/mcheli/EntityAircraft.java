@@ -29,7 +29,7 @@ public class EntityAircraft implements IClassTransformer
     public static boolean hook(Entity entity, EntityPlayer player, String ownerId, String ownerName)
     {
         System.out.println("RightClick "+entity+" "+player+" "+ownerId+" "+ownerName);
-        return MinecraftForge.EVENT_BUS.post(new PlayerPilotAircraftEvent(player, entity, ownerId!=null?UUID.fromString(ownerId):null, ownerName));
+        return MinecraftForge.EVENT_BUS.post(new PlayerPilotAircraftEvent(player, entity, ownerId!=null&&!ownerId.isEmpty()?UUID.fromString(ownerId):null, ownerName));
     }
 
     private class RightClickProtectionGenerator extends GeneratorAdapter
@@ -74,7 +74,7 @@ public class EntityAircraft implements IClassTransformer
         {
             String uuid = (String) pmpOwnerId.get(entity);
             return MinecraftForge.EVENT_BUS.post(new AircraftAttackEvent(entity, source, damage,
-                    uuid == null? null : UUID.fromString(uuid), (String)pmpOwnerName.get(entity)));
+                    uuid == null || uuid.isEmpty()? null : UUID.fromString(uuid), (String)pmpOwnerName.get(entity)));
         } catch (IllegalAccessException e)
         {
             throw new RuntimeException(e);
@@ -420,8 +420,9 @@ public class EntityAircraft implements IClassTransformer
             System.out.println("AIRCRAFT DROP! "+entity+" "+item+" "+amount+" "+offset);
             try
             {
+                String uuid = (String) pmpOwnerId.get(entity);
                 return MinecraftForge.EVENT_BUS.post(new AircraftDropEvent(entity, item, amount, offset,
-                        UUID.fromString((String)pmpOwnerId.get(entity)), (String)pmpOwnerName.get(entity)));
+                        uuid == null || uuid.isEmpty()? null : UUID.fromString(uuid), (String)pmpOwnerName.get(entity)));
             } catch (ReflectiveOperationException e)
             {
                 throw new RuntimeException(e);
