@@ -22,7 +22,7 @@ group= "br.com.gamemods" // http://maven.apache.org/guides/mini/guide-naming-con
 archivesBaseName = "ProtectMyPlane"
 
 minecraft {
-    version = "1.7.10-10.13.4.1566-1.7.10"
+    version = "1.7.10-10.13.2.1291"
     runDir = "eclipse"
 }
 
